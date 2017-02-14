@@ -4,6 +4,8 @@ import (
 	"container/heap"
 	"math/rand"
 	"testing"
+  "bytes"
+  "encoding/gob"
 )
 
 var letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
@@ -56,6 +58,20 @@ func Test_queue(t *testing.T) {
 	if q.Len() != 0 {
 		t.Errorf("Expected queue to have length 0, but got %d", q.Len())
 	}
+
+}
+
+func makeFakeIndex(size int) (*Index, [][]byte) {
+
+  index := NewIndex()
+  keys := make([][]byte, size)
+
+  for i := 0; i < size; i++ {
+    keys[i] = randBytes()
+    index.Add(keys[i], keys[i], i)
+  }
+
+  return index, keys
 
 }
 
@@ -149,6 +165,46 @@ func TestIndex(t *testing.T) {
 		}
 	}
 
+}
+
+func TestIndexGob(t *testing.T) {
+
+  index, keys := makeFakeIndex(100000)
+
+  buf := bytes.Buffer{}
+  enc := gob.NewEncoder(&buf)
+  enc.Encode(index)
+
+  expectedValues := make([][][]byte, 10000)
+  expectedScores := make([][]int, 10000)
+
+  for i := 0; i < 10000; i++ {
+    outValues, outScores := index.Find(keys[i])
+    expectedValues[i] = outValues
+    expectedScores[i] = outScores
+  }
+
+  newIndex := NewIndex()
+  dec := gob.NewDecoder(bytes.NewReader(buf.Bytes()))
+  dec.Decode(newIndex)
+
+  // make sure all the keys and corresponding values are still in there
+  for i := 0; i < 10000; i++ {
+    outValues, outScores := index.Find(keys[i])
+
+    if len(outValues) != len(expectedValues[i]) {
+      t.Fatalf("on search for key %s, expected %d results, got %s", keys[i], len(expectedValues[i]), len(outValues))
+    }
+
+    for j := range outValues {
+      if string(outValues[j]) != string(expectedValues[i][j]) {
+        t.Errorf("on search for key %s, expected result %d to be %s, got %s", keys[i], expectedValues[i][j], outValues[i])
+      }
+      if outScores[j] != expectedScores[i][j] {
+        t.Errorf("on search for key %s, expected score %d to be %d, got %d", keys[i], expectedScores[i][j], outScores[i])
+      }
+    }
+  }
 
 }
 

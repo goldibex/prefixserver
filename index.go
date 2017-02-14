@@ -3,7 +3,9 @@ package prefixserver
 import (
 	"bytes"
 	"container/heap"
+  "container/list"
 	"fmt"
+  "encoding/gob"
 )
 
 type node struct {
@@ -11,6 +13,20 @@ type node struct {
 	value    []byte
 	score    int
 	children []node
+}
+
+func (n *node) printme(depth int) {
+	for i := 0; i < depth; i++ {
+		fmt.Printf(" ")
+	}
+	fmt.Printf("-> %s (%d)", n.key, n.score)
+	if n.value != nil {
+		fmt.Printf(" : %s", n.value)
+	}
+	fmt.Printf("\n")
+	for i := range n.children {
+		n.children[i].printme(depth + 1)
+	}
 }
 
 // queue implements a priority queue for traversing nodes best-first.
@@ -53,27 +69,12 @@ func (q *queue) Pop() interface{} {
 
 }
 
-func (n *node) printme(depth int) {
-	for i := 0; i < depth; i++ {
-		fmt.Printf(" ")
-	}
-	fmt.Printf("-> %s (%d)", n.key, n.score)
-	if n.value != nil {
-		fmt.Printf(" : %s", n.value)
-	}
-	fmt.Printf("\n")
-	for i := range n.children {
-		n.children[i].printme(depth + 1)
-	}
-}
-
 type Index []node
 
 func NewIndex() *Index {
 	in := Index([]node{{key: []byte{}, children: []node{}}})
 	return &in
 }
-
 
 func (in *Index) dfs(f func(n *node)) {
 
@@ -84,7 +85,7 @@ func (in *Index) dfs(f func(n *node)) {
 		stack = stack[:len(stack)-1]
 		f(nextNode)
 
-		for i := range nextNode.children {
+		for i := len(nextNode.children)-1; i >= 0; i-- {
 			stack = append(stack, &nextNode.children[i])
 		}
 	}
@@ -221,5 +222,87 @@ func (in *Index) Compact() {
     }
 
   }
+
+}
+
+type nodeGob struct {
+  Keys [][]byte
+  Values [][]byte
+  Scores []int
+  ChildListIndices []int
+  ChildListLengths []int
+}
+
+func (in *Index) GobEncode() ([]byte, error) {
+
+  in.Compact()
+
+  buf := bytes.Buffer{}
+  enc := gob.NewEncoder(&buf)
+
+  g := nodeGob{
+    Keys: make([][]byte, 0, 1024),
+    Values: make([][]byte, 0, 1024),
+    Scores: make([]int, 0, 1024),
+    ChildListIndices: make([]int, 0, 1024),
+    ChildListLengths: make([]int, 0, 1024),
+  }
+
+  l := list.New()
+  l.PushFront(&(*in)[0])
+
+  childListPos := 1
+
+  for l.Len() > 0 {
+
+    nextNode := l.Remove(l.Front()).(*node)
+
+    g.ChildListIndices = append(g.ChildListIndices, childListPos)
+    g.ChildListLengths = append(g.ChildListLengths, len(nextNode.children))
+    g.Keys = append(g.Keys, nextNode.key)
+    g.Values = append(g.Values, nextNode.value)
+    g.Scores = append(g.Scores, nextNode.score)
+
+    childListPos += len(nextNode.children)
+
+    for i := range nextNode.children {
+      l.PushBack(&nextNode.children[i])
+    }
+
+  }
+
+  err := enc.Encode(&g)
+  if err != nil {
+    return nil, err
+  }
+
+  return buf.Bytes(), nil
+
+}
+
+func (in *Index) GobDecode(data []byte) error {
+
+  var g nodeGob
+
+  dec := gob.NewDecoder(bytes.NewBuffer(data))
+
+  if err := dec.Decode(&g); err != nil {
+    return err
+  }
+
+  nodes := make([]node, len(g.Keys))
+  for i := range nodes {
+    nodes[i].key = g.Keys[i]
+    nodes[i].value = g.Values[i]
+    nodes[i].score = g.Scores[i]
+  }
+
+  for i := range nodes {
+    nodes[i].children = nodes[g.ChildListIndices[i]:g.ChildListIndices[i]+g.ChildListLengths[i]]
+  }
+
+  *in = nodes[0:1]
+
+  return nil
 
 }
