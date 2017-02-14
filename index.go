@@ -151,15 +151,15 @@ func (in *Index) Add(key []byte, value []byte, score int) {
 
 }
 
-func (in *Index) Find(key []byte) (values [][]byte, scores []int) {
-
-	values = make([][]byte, 0, 10)
-	scores = make([]int, 0, 10)
+// Find locates up to len(values) matches to prefix, stores them in values and their scores in scores, and returns the total number of matches.
+// Find panics if len(values) != len(scores).
+func (in *Index) Find(key []byte, values [][]byte, scores []int) int {
 
 	// initialize the priority queue through which we'll conduct our best-first search
 	q := new_queue()
 	heap.Init(q)
 	heap.Push(q, &queueElement{node: &(*in)[0], prefix: key})
+	matchCount := 0
 
 	for q.Len() > 0 {
 
@@ -181,11 +181,12 @@ func (in *Index) Find(key []byte) (values [][]byte, scores []int) {
 
 			if len(prefix) == 0 && nextNode.value != nil {
 				// consumed the whole prefix and this node has a value, so append it
-				values = append(values, nextNode.value)
-				scores = append(scores, nextNode.score)
-				if len(values) == 10 {
+				values[matchCount] = nextNode.value
+				scores[matchCount] = nextNode.score
+				matchCount++
+				if len(values) == matchCount {
 					// hit the max number of results, so stop early
-					return
+					return matchCount
 				}
 			}
 
@@ -193,7 +194,7 @@ func (in *Index) Find(key []byte) (values [][]byte, scores []int) {
 
 	}
 
-	return
+	return matchCount
 
 }
 

@@ -18,6 +18,21 @@ func randBytes() []byte {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return b
+
+}
+
+func makeFakeIndex(size int) (*Index, [][]byte) {
+
+	index := NewIndex()
+	keys := make([][]byte, size)
+
+	for i := 0; i < size; i++ {
+		keys[i] = randBytes()
+		index.Add(keys[i], keys[i], i)
+	}
+
+	return index, keys
+
 }
 
 func Test_queue(t *testing.T) {
@@ -62,20 +77,6 @@ func Test_queue(t *testing.T) {
 
 }
 
-func makeFakeIndex(size int) (*Index, [][]byte) {
-
-	index := NewIndex()
-	keys := make([][]byte, size)
-
-	for i := 0; i < size; i++ {
-		keys[i] = randBytes()
-		index.Add(keys[i], keys[i], i)
-	}
-
-	return index, keys
-
-}
-
 func TestIndexLittle(t *testing.T) {
 	values := [][]byte{
 		[]byte("r"),
@@ -88,9 +89,12 @@ func TestIndexLittle(t *testing.T) {
 		index.Add(values[i], values[i], i)
 	}
 
-	outValues, _ := index.Find([]byte("r"))
-	if len(outValues) != 3 {
-		t.Fatalf("Expected 3 results for 'r' but got %d: %s", len(outValues), outValues)
+	outValues := make([][]byte, 10)
+	outScores := make([]int, 10)
+
+	count := index.Find([]byte("r"), outValues, outScores)
+	if count != 3 {
+		t.Fatalf("Expected 3 results for 'r' but got %d: %s", count, outValues[0:count])
 	}
 
 	if string(outValues[0]) != "rW" {
@@ -126,6 +130,9 @@ func TestIndex(t *testing.T) {
 		index.Add(values[i], values[i], i)
 	}
 
+	outValues := make([][]byte, 10)
+	outScores := make([]int, 10)
+
 	for i := range valsStartingWith {
 
 		if len(valsStartingWith[i]) == 0 {
@@ -133,9 +140,9 @@ func TestIndex(t *testing.T) {
 		}
 
 		prefix := []byte{byte(i)}
-		outValues, _ := index.Find(prefix)
+		count := index.Find(prefix, outValues, outScores)
 
-		for j := range outValues {
+		for j := 0; j < count; j++ {
 
 			if string(outValues[j]) != string(valsStartingWith[i][j]) {
 				t.Fatalf("for starting value %d: index %d: bad value: %s, expected %s", i, j, outValues[j], string(valsStartingWith[i][j]))
@@ -156,9 +163,9 @@ func TestIndex(t *testing.T) {
 		}
 
 		prefix := []byte{byte(i)}
-		outValues, _ := index.Find(prefix)
+		count := index.Find(prefix, outValues, outScores)
 
-		for j := range outValues {
+		for j := 0; j < count; j++ {
 
 			if string(outValues[j]) != string(valsStartingWith[i][j]) {
 				t.Fatalf("for starting value %d: index %d: bad value: %s, expected %s", i, j, outValues[j], string(valsStartingWith[i][j]))
@@ -179,10 +186,18 @@ func TestIndexGob(t *testing.T) {
 	expectedValues := make([][][]byte, 10000)
 	expectedScores := make([][]int, 10000)
 
+	outValues := make([][]byte, 10)
+	outScores := make([]int, 10)
+
 	for i := 0; i < 10000; i++ {
-		outValues, outScores := index.Find(keys[i])
-		expectedValues[i] = outValues
-		expectedScores[i] = outScores
+		count := index.Find(keys[i], outValues, outScores)
+
+		expectedValues[i] = make([][]byte, count)
+		expectedScores[i] = make([]int, count)
+
+		copy(expectedValues[i], outValues)
+		copy(expectedScores[i], outScores)
+
 	}
 
 	newIndex := NewIndex()
@@ -191,13 +206,13 @@ func TestIndexGob(t *testing.T) {
 
 	// make sure all the keys and corresponding values are still in there
 	for i := 0; i < 10000; i++ {
-		outValues, outScores := index.Find(keys[i])
+		count := index.Find(keys[i], outValues, outScores)
 
-		if len(outValues) != len(expectedValues[i]) {
-			t.Fatalf("on search for key %s, expected %d results, got %s", keys[i], len(expectedValues[i]), len(outValues))
+		if count != len(expectedValues[i]) {
+			t.Fatalf("on search for key %s, expected %d results, got %s", keys[i], len(expectedValues[i]), count)
 		}
 
-		for j := range outValues {
+		for j := 0; j < count; j++ {
 			if string(outValues[j]) != string(expectedValues[i][j]) {
 				t.Errorf("on search for key %s, expected result %d to be %s, got %s", keys[i], expectedValues[i][j], outValues[i])
 			}
@@ -209,6 +224,7 @@ func TestIndexGob(t *testing.T) {
 
 }
 
+// BenchmarkIndexAdd tests the amount of time required to add an item to an index.
 func BenchmarkIndexAdd(b *testing.B) {
 
 	values := make([][]byte, b.N)
@@ -226,10 +242,39 @@ func BenchmarkIndexAdd(b *testing.B) {
 
 }
 
-// BenchmarkIndexEncode tests the amount of time required to serialize an index with 5 million entries.
+// BenchmarkIndexCompact tests the amount of time required to compact an index with 2 million random entries.
+func BenchmarkIndexCompact(b *testing.B) {
+
+	index, _ := makeFakeIndex(2000000)
+	runtime.GC()
+	b.ResetTimer()
+
+	index.Compact()
+
+}
+
+// BenchmarkIndexFind tests the amount of time required to find up to 100 results for an item in an index of 2 million random entries.
+func BenchmarkIndexFind(b *testing.B) {
+
+	index, keys := makeFakeIndex(2000000)
+	index.Compact()
+	runtime.GC()
+	b.ResetTimer()
+
+	outValues := make([][]byte, 100)
+	outScores := make([]int, 100)
+
+	for i := 0; i < b.N; i++ {
+		pos := rand.Int31n(2000000)
+		index.Find(keys[pos], outValues, outScores)
+	}
+
+}
+
+// BenchmarkIndexEncode tests the amount of time required to serialize an index with 2 million random entries.
 func BenchmarkIndexEncode(b *testing.B) {
 
-	index, _ := makeFakeIndex(1000000)
+	index, _ := makeFakeIndex(2000000)
 	index.Compact()
 	runtime.GC()
 	b.ResetTimer()
@@ -242,16 +287,16 @@ func BenchmarkIndexEncode(b *testing.B) {
 
 }
 
-// BenchmarkIndexDecode tests the amount of time required to deserialize an index with 5 million entries.
+// BenchmarkIndexDecode tests the amount of time required to deserialize an index with 2 million random entries.
 func BenchmarkIndexDecode(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		index, _ := makeFakeIndex(5000000)
+		index, _ := makeFakeIndex(2000000)
 		buf := bytes.NewBuffer(make([]byte, 0, 10000000))
 		enc := gob.NewEncoder(buf)
 		enc.Encode(index)
-
+		runtime.GC()
 		b.StartTimer()
 
 		newIndex := NewIndex()
