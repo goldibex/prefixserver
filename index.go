@@ -74,6 +74,32 @@ func NewIndex() *Index {
 	return &in
 }
 
+
+func (in *Index) dfs(f func(n *node)) {
+
+	stack := []*node{&(*in)[0]}
+
+	for len(stack) > 0 {
+		nextNode := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		f(nextNode)
+
+		for i := range nextNode.children {
+			stack = append(stack, &nextNode.children[i])
+		}
+	}
+
+}
+
+func (in *Index) numNodes() int {
+  n := 0
+  in.dfs(func(_ *node) {
+    n++
+  })
+
+  return n
+}
+
 func (in *Index) Add(key []byte, value []byte, score int) {
 
 	var attachmentPoint *node = &(*in)[0]
@@ -124,22 +150,6 @@ func (in *Index) Add(key []byte, value []byte, score int) {
 
 }
 
-func (in *Index) dfs(f func(n *node)) {
-
-	stack := []*node{&(*in)[0]}
-
-	for len(stack) > 0 {
-		nextNode := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		f(nextNode)
-
-		for i := range nextNode.children {
-			stack = append(stack, &nextNode.children[i])
-		}
-	}
-
-}
-
 func (in *Index) Find(key []byte) (values [][]byte, scores []int) {
 
 	values = make([][]byte, 0, 10)
@@ -183,5 +193,33 @@ func (in *Index) Find(key []byte) (values [][]byte, scores []int) {
 	}
 
 	return
+
+}
+
+func (in *Index) Compact() {
+
+  // the compacting process condenses nodes on straight-line paths together,
+  // saving on the memory footprint and time cost of traversing these nodes separately.
+
+	stack := []*node{&(*in)[0]}
+
+	for len(stack) > 0 {
+
+		nextNode := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+    for len(nextNode.children) == 1 && len(nextNode.children[0].children) > 0 {
+      // absorb the child node
+
+      nextNode.key = append(nextNode.key, nextNode.children[0].key...)
+      nextNode.children = nextNode.children[0].children
+
+    }
+
+    for i := len(nextNode.children)-1; i >= 0; i-- {
+      stack = append(stack, &nextNode.children[i])
+    }
+
+  }
 
 }

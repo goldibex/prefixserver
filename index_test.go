@@ -88,9 +88,9 @@ func TestIndex(t *testing.T) {
 
 	seenValues := map[string]bool{}
 
-	values := make([][]byte, 1000000)
+	values := make([][]byte, 100000)
 
-	for i := 1000000 - 1; i >= 0; i-- {
+	for i := 100000 - 1; i >= 0; i-- {
 
 		for values[i] == nil || seenValues[string(values[i])] {
 			values[i] = randBytes()
@@ -125,6 +125,30 @@ func TestIndex(t *testing.T) {
 			}
 		}
 	}
+
+  sizeBeforeCompacting := index.numNodes()
+
+  index.Compact()
+
+  t.Logf("size before compacting: %d after compacting: %d", sizeBeforeCompacting, index.numNodes())
+
+	for i := range valsStartingWith {
+
+		if len(valsStartingWith[i]) == 0 {
+			continue
+		}
+
+		prefix := []byte{byte(i)}
+		outValues, _ := index.Find(prefix)
+
+		for j := range outValues {
+
+			if string(outValues[j]) != string(valsStartingWith[i][j]) {
+				t.Fatalf("for starting value %d: index %d: bad value: %s, expected %s", i, j, outValues[j], string(valsStartingWith[i][j]))
+			}
+		}
+	}
+
 
 }
 
