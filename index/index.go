@@ -71,7 +71,7 @@ func (q *queue) Pop() interface{} {
 
 type Index []node
 
-func NewIndex() *Index {
+func New() *Index {
 	in := Index([]node{{key: []byte{}, children: []node{}}})
 	return &in
 }

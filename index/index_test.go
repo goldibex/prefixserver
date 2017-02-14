@@ -23,7 +23,7 @@ func randBytes() []byte {
 
 func makeFakeIndex(size int) (*Index, [][]byte) {
 
-	index := NewIndex()
+	index := New()
 	keys := make([][]byte, size)
 
 	for i := 0; i < size; i++ {
@@ -84,7 +84,7 @@ func TestIndexLittle(t *testing.T) {
 		[]byte("rW"),
 	}
 
-	index := NewIndex()
+	index := New()
 	for i := range values {
 		index.Add(values[i], values[i], i)
 	}
@@ -124,7 +124,7 @@ func TestIndex(t *testing.T) {
 		valsStartingWith[values[i][0]] = append(valsStartingWith[values[i][0]], values[i])
 	}
 
-	index := NewIndex()
+	index := New()
 
 	for i := range values {
 		index.Add(values[i], values[i], i)
@@ -200,7 +200,7 @@ func TestIndexGob(t *testing.T) {
 
 	}
 
-	newIndex := NewIndex()
+	newIndex := New()
 	dec := gob.NewDecoder(bytes.NewReader(buf.Bytes()))
 	dec.Decode(newIndex)
 
@@ -232,7 +232,7 @@ func BenchmarkIndexAdd(b *testing.B) {
 		values[i] = randBytes()
 	}
 
-	index := NewIndex()
+	index := New()
 
 	b.ResetTimer()
 
@@ -299,7 +299,7 @@ func BenchmarkIndexDecode(b *testing.B) {
 		runtime.GC()
 		b.StartTimer()
 
-		newIndex := NewIndex()
+		newIndex := New()
 		dec := gob.NewDecoder(bytes.NewReader(buf.Bytes()))
 		dec.Decode(newIndex)
 	}
