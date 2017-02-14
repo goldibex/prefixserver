@@ -1,11 +1,12 @@
 package prefixserver
 
 import (
+	"bytes"
 	"container/heap"
+	"encoding/gob"
 	"math/rand"
+	"runtime"
 	"testing"
-  "bytes"
-  "encoding/gob"
 )
 
 var letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
@@ -63,15 +64,15 @@ func Test_queue(t *testing.T) {
 
 func makeFakeIndex(size int) (*Index, [][]byte) {
 
-  index := NewIndex()
-  keys := make([][]byte, size)
+	index := NewIndex()
+	keys := make([][]byte, size)
 
-  for i := 0; i < size; i++ {
-    keys[i] = randBytes()
-    index.Add(keys[i], keys[i], i)
-  }
+	for i := 0; i < size; i++ {
+		keys[i] = randBytes()
+		index.Add(keys[i], keys[i], i)
+	}
 
-  return index, keys
+	return index, keys
 
 }
 
@@ -142,11 +143,11 @@ func TestIndex(t *testing.T) {
 		}
 	}
 
-  sizeBeforeCompacting := index.numNodes()
+	sizeBeforeCompacting := index.numNodes()
 
-  index.Compact()
+	index.Compact()
 
-  t.Logf("size before compacting: %d after compacting: %d", sizeBeforeCompacting, index.numNodes())
+	t.Logf("size before compacting: %d after compacting: %d", sizeBeforeCompacting, index.numNodes())
 
 	for i := range valsStartingWith {
 
@@ -169,42 +170,42 @@ func TestIndex(t *testing.T) {
 
 func TestIndexGob(t *testing.T) {
 
-  index, keys := makeFakeIndex(100000)
+	index, keys := makeFakeIndex(100000)
 
-  buf := bytes.Buffer{}
-  enc := gob.NewEncoder(&buf)
-  enc.Encode(index)
+	buf := bytes.Buffer{}
+	enc := gob.NewEncoder(&buf)
+	enc.Encode(index)
 
-  expectedValues := make([][][]byte, 10000)
-  expectedScores := make([][]int, 10000)
+	expectedValues := make([][][]byte, 10000)
+	expectedScores := make([][]int, 10000)
 
-  for i := 0; i < 10000; i++ {
-    outValues, outScores := index.Find(keys[i])
-    expectedValues[i] = outValues
-    expectedScores[i] = outScores
-  }
+	for i := 0; i < 10000; i++ {
+		outValues, outScores := index.Find(keys[i])
+		expectedValues[i] = outValues
+		expectedScores[i] = outScores
+	}
 
-  newIndex := NewIndex()
-  dec := gob.NewDecoder(bytes.NewReader(buf.Bytes()))
-  dec.Decode(newIndex)
+	newIndex := NewIndex()
+	dec := gob.NewDecoder(bytes.NewReader(buf.Bytes()))
+	dec.Decode(newIndex)
 
-  // make sure all the keys and corresponding values are still in there
-  for i := 0; i < 10000; i++ {
-    outValues, outScores := index.Find(keys[i])
+	// make sure all the keys and corresponding values are still in there
+	for i := 0; i < 10000; i++ {
+		outValues, outScores := index.Find(keys[i])
 
-    if len(outValues) != len(expectedValues[i]) {
-      t.Fatalf("on search for key %s, expected %d results, got %s", keys[i], len(expectedValues[i]), len(outValues))
-    }
+		if len(outValues) != len(expectedValues[i]) {
+			t.Fatalf("on search for key %s, expected %d results, got %s", keys[i], len(expectedValues[i]), len(outValues))
+		}
 
-    for j := range outValues {
-      if string(outValues[j]) != string(expectedValues[i][j]) {
-        t.Errorf("on search for key %s, expected result %d to be %s, got %s", keys[i], expectedValues[i][j], outValues[i])
-      }
-      if outScores[j] != expectedScores[i][j] {
-        t.Errorf("on search for key %s, expected score %d to be %d, got %d", keys[i], expectedScores[i][j], outScores[i])
-      }
-    }
-  }
+		for j := range outValues {
+			if string(outValues[j]) != string(expectedValues[i][j]) {
+				t.Errorf("on search for key %s, expected result %d to be %s, got %s", keys[i], expectedValues[i][j], outValues[i])
+			}
+			if outScores[j] != expectedScores[i][j] {
+				t.Errorf("on search for key %s, expected score %d to be %d, got %d", keys[i], expectedScores[i][j], outScores[i])
+			}
+		}
+	}
 
 }
 
@@ -221,6 +222,41 @@ func BenchmarkIndexAdd(b *testing.B) {
 
 	for i := range values {
 		index.Add(values[i], values[i], i)
+	}
+
+}
+
+// BenchmarkIndexEncode tests the amount of time required to serialize an index with 5 million entries.
+func BenchmarkIndexEncode(b *testing.B) {
+
+	index, _ := makeFakeIndex(1000000)
+	index.Compact()
+	runtime.GC()
+	b.ResetTimer()
+
+	buf := bytes.NewBuffer(make([]byte, 0, 10000000))
+	enc := gob.NewEncoder(buf)
+	enc.Encode(index)
+
+	b.Logf("Encoded index size: %d bytes", len(buf.Bytes()))
+
+}
+
+// BenchmarkIndexDecode tests the amount of time required to deserialize an index with 5 million entries.
+func BenchmarkIndexDecode(b *testing.B) {
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		index, _ := makeFakeIndex(5000000)
+		buf := bytes.NewBuffer(make([]byte, 0, 10000000))
+		enc := gob.NewEncoder(buf)
+		enc.Encode(index)
+
+		b.StartTimer()
+
+		newIndex := NewIndex()
+		dec := gob.NewDecoder(bytes.NewReader(buf.Bytes()))
+		dec.Decode(newIndex)
 	}
 
 }
