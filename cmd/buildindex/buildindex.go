@@ -5,7 +5,7 @@ import (
 	"encoding/gob"
 	"flag"
 	"fmt"
-	index "github.com/goldibex/alation/prefixserver/index"
+	index "github.com/goldibex/prefixserver/index"
 	"os"
 	"path"
 	"strings"

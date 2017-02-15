@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	index "github.com/goldibex/alation/prefixserver/index"
+	index "github.com/goldibex/prefixserver/index"
 	"log"
 	"net/http"
 	"net/http/pprof"
