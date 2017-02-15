@@ -213,7 +213,7 @@ func TestIndexGob(t *testing.T) {
 		}
 		for j := 0; j < count; j++ {
 
-      if string(outValues[j]) != string(expectedValues[i][j]) {
+			if string(outValues[j]) != string(expectedValues[i][j]) {
 				t.Errorf("on search for key %s, expected result %d to be %s, got %s", keys[i], expectedValues[i][j], outValues[i])
 			}
 			if outScores[j] != expectedScores[i][j] {
@@ -221,7 +221,7 @@ func TestIndexGob(t *testing.T) {
 			}
 		}
 
- 	}
+	}
 
 }
 

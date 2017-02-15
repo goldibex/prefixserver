@@ -3,9 +3,9 @@ package prefixserver
 import (
 	"bytes"
 	"container/heap"
-  "container/list"
+	"container/list"
+	"encoding/gob"
 	"fmt"
-  "encoding/gob"
 )
 
 type node struct {
@@ -85,7 +85,7 @@ func (in *Index) dfs(f func(n *node)) {
 		stack = stack[:len(stack)-1]
 		f(nextNode)
 
-		for i := len(nextNode.children)-1; i >= 0; i-- {
+		for i := len(nextNode.children) - 1; i >= 0; i-- {
 			stack = append(stack, &nextNode.children[i])
 		}
 	}
@@ -93,12 +93,12 @@ func (in *Index) dfs(f func(n *node)) {
 }
 
 func (in *Index) numNodes() int {
-  n := 0
-  in.dfs(func(_ *node) {
-    n++
-  })
+	n := 0
+	in.dfs(func(_ *node) {
+		n++
+	})
 
-  return n
+	return n
 }
 
 // Add adds an entry to the index with the given value and score.
@@ -135,19 +135,19 @@ func (in *Index) Add(key []byte, value []byte, score int) {
 	// and create a new tree of nodes at the attachment point
 	for i := range key {
 
-    newNode := node{
-      key: key[i:i+1],
-      score: score,
-      children: make([]node, 0, 1),
-    }
+		newNode := node{
+			key:      key[i : i+1],
+			score:    score,
+			children: make([]node, 0, 1),
+		}
 
 		attachmentPoint.children = append(attachmentPoint.children, newNode)
-    attachmentPoint = &attachmentPoint.children[len(attachmentPoint.children)-1]
-  }
+		attachmentPoint = &attachmentPoint.children[len(attachmentPoint.children)-1]
+	}
 
 	attachmentPoint.children = append(attachmentPoint.children, node{
-		score:    score,
-		value:    value,
+		score: score,
+		value: value,
 	})
 
 }
@@ -160,7 +160,7 @@ func (in *Index) Find(key []byte, values [][]byte, scores []int) int {
 	q := new_queue()
 	heap.Init(q)
 	heap.Push(q, &queueElement{node: &(*in)[0], prefix: key})
-  matchCount := 0
+	matchCount := 0
 
 	for q.Len() > 0 {
 
@@ -181,7 +181,7 @@ func (in *Index) Find(key []byte, values [][]byte, scores []int) int {
 			}
 
 			if len(prefix) == 0 && nextNode.value != nil {
-        // consumed the whole prefix and this node has a value, so append it
+				// consumed the whole prefix and this node has a value, so append it
 				values[matchCount] = nextNode.value
 				scores[matchCount] = nextNode.score
 				matchCount++
@@ -203,8 +203,8 @@ func (in *Index) Find(key []byte, values [][]byte, scores []int) int {
 // It is an error to call Add after having called Compact.
 func (in *Index) Compact() {
 
-  // the compacting process condenses nodes on straight-line paths together,
-  // saving on the memory footprint and time cost of traversing these nodes separately.
+	// the compacting process condenses nodes on straight-line paths together,
+	// saving on the memory footprint and time cost of traversing these nodes separately.
 
 	stack := []*node{&(*in)[0]}
 
@@ -213,111 +213,111 @@ func (in *Index) Compact() {
 		nextNode := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-    for len(nextNode.children) == 1 && len(nextNode.children[0].children) > 0 {
-      // absorb the child node
+		for len(nextNode.children) == 1 && len(nextNode.children[0].children) > 0 {
+			// absorb the child node
 
-      nextNode.key = append(nextNode.key, nextNode.children[0].key...)
-      nextNode.children = nextNode.children[0].children
+			nextNode.key = append(nextNode.key, nextNode.children[0].key...)
+			nextNode.children = nextNode.children[0].children
 
-    }
+		}
 
-    for i := len(nextNode.children)-1; i >= 0; i-- {
-      stack = append(stack, &nextNode.children[i])
-    }
+		for i := len(nextNode.children) - 1; i >= 0; i-- {
+			stack = append(stack, &nextNode.children[i])
+		}
 
-  }
+	}
 
 }
 
 type nodeGob struct {
-  Keys [][]byte
-  Values [][]byte
-  Scores []int
-  ChildListIndices []int
-  ChildListLengths []int
+	Keys             [][]byte
+	Values           [][]byte
+	Scores           []int
+	ChildListIndices []int
+	ChildListLengths []int
 }
 
 // GobEncode implements encoding/gob's GobEncoder interface for serializing the index.
 func (in *Index) GobEncode() ([]byte, error) {
 
-  in.Compact()
+	in.Compact()
 
-  buf := bytes.Buffer{}
-  enc := gob.NewEncoder(&buf)
+	buf := bytes.Buffer{}
+	enc := gob.NewEncoder(&buf)
 
-  // do a first-line pass to count the number of nodes so we can avoid array resizing
-  nodeCount := 0
-  in.dfs(func(n *node) {
-    nodeCount++
-  })
+	// do a first-line pass to count the number of nodes so we can avoid array resizing
+	nodeCount := 0
+	in.dfs(func(n *node) {
+		nodeCount++
+	})
 
-  g := nodeGob{
-    Keys: make([][]byte, nodeCount),
-    Values: make([][]byte, nodeCount),
-    Scores: make([]int, nodeCount),
-    ChildListIndices: make([]int, nodeCount),
-    ChildListLengths: make([]int, nodeCount),
-  }
+	g := nodeGob{
+		Keys:             make([][]byte, nodeCount),
+		Values:           make([][]byte, nodeCount),
+		Scores:           make([]int, nodeCount),
+		ChildListIndices: make([]int, nodeCount),
+		ChildListLengths: make([]int, nodeCount),
+	}
 
-  l := list.New()
-  l.PushFront(&(*in)[0])
+	l := list.New()
+	l.PushFront(&(*in)[0])
 
-  i := 0
-  childListPos := 1
+	i := 0
+	childListPos := 1
 
-  for l.Len() > 0 {
+	for l.Len() > 0 {
 
-    nextNode := l.Remove(l.Front()).(*node)
+		nextNode := l.Remove(l.Front()).(*node)
 
-    g.ChildListIndices[i] = childListPos
-    g.ChildListLengths[i] = len(nextNode.children)
-    g.Keys[i] = nextNode.key
-    g.Values[i] = nextNode.value
-    g.Scores[i] = nextNode.score
+		g.ChildListIndices[i] = childListPos
+		g.ChildListLengths[i] = len(nextNode.children)
+		g.Keys[i] = nextNode.key
+		g.Values[i] = nextNode.value
+		g.Scores[i] = nextNode.score
 
-    childListPos += len(nextNode.children)
+		childListPos += len(nextNode.children)
 
-    for j := range nextNode.children {
-      l.PushBack(&nextNode.children[j])
-    }
+		for j := range nextNode.children {
+			l.PushBack(&nextNode.children[j])
+		}
 
-    i++
+		i++
 
-  }
+	}
 
-  err := enc.Encode(&g)
-  if err != nil {
-    return nil, err
-  }
+	err := enc.Encode(&g)
+	if err != nil {
+		return nil, err
+	}
 
-  return buf.Bytes(), nil
+	return buf.Bytes(), nil
 
 }
 
 // GobDecode implements encoding/gob's GobDecoder interface for deserializing the index.
 func (in *Index) GobDecode(data []byte) error {
 
-  var g nodeGob
+	var g nodeGob
 
-  dec := gob.NewDecoder(bytes.NewBuffer(data))
+	dec := gob.NewDecoder(bytes.NewBuffer(data))
 
-  if err := dec.Decode(&g); err != nil {
-    return err
-  }
+	if err := dec.Decode(&g); err != nil {
+		return err
+	}
 
-  nodes := make([]node, len(g.Keys))
-  for i := range nodes {
-    nodes[i].key = g.Keys[i]
-    nodes[i].value = g.Values[i]
-    nodes[i].score = g.Scores[i]
-  }
+	nodes := make([]node, len(g.Keys))
+	for i := range nodes {
+		nodes[i].key = g.Keys[i]
+		nodes[i].value = g.Values[i]
+		nodes[i].score = g.Scores[i]
+	}
 
-  for i := range nodes {
-    nodes[i].children = nodes[g.ChildListIndices[i]:g.ChildListIndices[i]+g.ChildListLengths[i]]
-  }
+	for i := range nodes {
+		nodes[i].children = nodes[g.ChildListIndices[i] : g.ChildListIndices[i]+g.ChildListLengths[i]]
+	}
 
-  *in = nodes[0:1]
+	*in = nodes[0:1]
 
-  return nil
+	return nil
 
 }
