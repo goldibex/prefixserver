@@ -1,6 +1,10 @@
 prefixserver
 ============
 
+[![GoDoc](https://godoc.org/github.com/goldibex/prefixserver?status.svg)](https://godoc.org/github.com/goldibex/prefixserver)
+[![CircleCI](https://circleci.com/gh/goldibex/prefixserver.svg?style=svg)](https://circleci.com/gh/goldibex/prefixserver)
+
+
 My implementation of part 1 of Alation's code challenge.
 
 ## Dependencies
