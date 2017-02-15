@@ -183,13 +183,13 @@ func TestIndexGob(t *testing.T) {
 	enc := gob.NewEncoder(&buf)
 	enc.Encode(index)
 
-	expectedValues := make([][][]byte, 10000)
-	expectedScores := make([][]int, 10000)
+	expectedValues := make([][][]byte, 100000)
+	expectedScores := make([][]int, 100000)
 
 	outValues := make([][]byte, 10)
 	outScores := make([]int, 10)
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 100000; i++ {
 		count := index.Find(keys[i], outValues, outScores)
 
 		expectedValues[i] = make([][]byte, count)
@@ -205,22 +205,23 @@ func TestIndexGob(t *testing.T) {
 	dec.Decode(newIndex)
 
 	// make sure all the keys and corresponding values are still in there
-	for i := 0; i < 10000; i++ {
-		count := index.Find(keys[i], outValues, outScores)
+	for i := 0; i < 100000; i++ {
+		count := newIndex.Find(keys[i], outValues, outScores)
 
 		if count != len(expectedValues[i]) {
 			t.Fatalf("on search for key %s, expected %d results, got %s", keys[i], len(expectedValues[i]), count)
 		}
-
 		for j := 0; j < count; j++ {
-			if string(outValues[j]) != string(expectedValues[i][j]) {
+
+      if string(outValues[j]) != string(expectedValues[i][j]) {
 				t.Errorf("on search for key %s, expected result %d to be %s, got %s", keys[i], expectedValues[i][j], outValues[i])
 			}
 			if outScores[j] != expectedScores[i][j] {
 				t.Errorf("on search for key %s, expected score %d to be %d, got %d", keys[i], expectedScores[i][j], outScores[i])
 			}
 		}
-	}
+
+ 	}
 
 }
 
